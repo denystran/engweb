@@ -7,22 +7,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
-<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-20" x-data="quizApp('{{ exam_id }}')">
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-20" x-data="quizApp('{{ exam_id }}', {{ duration }})">
     
-    <!-- Header -->
-    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md py-5 px-4 mb-8 sticky top-0 z-20">
-        <div class="max-w-3xl mx-auto flex justify-between items-center">
+    <!-- Header cố định hiển thị tiêu đề và Đồng hồ đếm ngược 50 phút -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md py-4 px-6 mb-8 sticky top-0 z-20">
+        <div class="max-w-3xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-3">
             <div>
-                <a href="/" class="text-blue-200 hover:text-white text-sm font-medium inline-block mb-1">← Quay lại danh sách đề</a>
-                <h1 class="text-xl font-bold">{{ exam_title }}</h1>
+                <a href="/" class="text-blue-200 hover:text-white text-xs font-medium inline-block mb-1">← Quay lại danh sách đề</a>
+                <h1 class="text-lg font-bold">{{ exam_title }}</h1>
             </div>
-            <span class="px-3 py-1 rounded-lg text-xs font-bold" :class="submitted ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'" x-text="submitted ? 'Đã nộp bài' : 'Đang làm bài'"></span>
+            <div class="flex items-center gap-4">
+                <!-- Bộ đếm thời gian -->
+                <div class="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/20 text-sm font-mono font-bold flex items-center gap-2">
+                    <span>⏱️ Thời gian còn lại:</span>
+                    <span x-text="formatTime" :class="timeLeft < 300 ? 'text-rose-300 animate-pulse' : 'text-white'"></span>
+                </div>
+                <span class="px-3 py-1 rounded-lg text-xs font-bold" :class="submitted ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'" x-text="submitted ? 'Đã nộp bài' : 'Đang làm'"></span>
+            </div>
         </div>
     </header>
 
     <main class="max-w-3xl mx-auto px-4">
         
-        <!-- Score Board -->
+        <!-- Bảng điểm sau khi nộp -->
         <template x-if="submitted">
             <div class="mb-8 bg-white border-2 border-emerald-500/30 rounded-3xl p-6 shadow-xl text-center">
                 <h2 class="text-2xl font-bold text-slate-800">Kết quả bài làm</h2>
@@ -35,7 +42,12 @@
         <div class="space-y-6">
             <template x-for="(q, qId) in questions" :key="qId">
                 <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm question-block" :data-id="qId">
-                    <p class="font-semibold text-slate-800 text-base mb-4" x-text="'Câu ' + qId + ': ' + q.question"></p>
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-xs font-bold px-2.5 py-1 rounded-md bg-blue-50 text-blue-700" x-text="'Câu ' + qId"></span>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-md uppercase bg-slate-100 text-slate-600" x-text="q.sectionName"></span>
+                    </div>
+                    
+                    <p class="font-semibold text-slate-800 text-base mb-4" x-text="q.question"></p>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <template x-for="(optText, optKey) in q.options" :key="optKey">
@@ -48,7 +60,7 @@
                                        'border-slate-200 bg-white opacity-60': submitted && results[qId]?.correct !== optKey && answers[qId] !== optKey
                                    }">
                                 <input type="radio" :name="'q_' + qId" :value="optKey" x-model="answers[qId]" :disabled="submitted" class="w-4 h-4 text-blue-600 focus:ring-blue-500 mr-3">
-                                <span class="text-sm"><strong x-text="optKey + '.'"></strong> <span x-text="optText"></span></span>
+                                <span class="text-sm"><strong x-text="optKey + '.'"></strong> <span x-html="optText"></span></span>
                             </label>
                         </template>
                     </div>
@@ -78,19 +90,38 @@
     </main>
 
     <script>
-        function quizApp(examId) {
+        function quizApp(examId, durationMinutes) {
             return {
                 examId: examId,
                 questions: {{ questions | tojson }},
                 answers: {},
                 submitted: false,
                 score: 0,
-                total: 0,
                 results: {},
+                timeLeft: durationMinutes * 60,
+                timer: null,
+                init() {
+                    this.timer = setInterval(() => {
+                        if (this.timeLeft > 0 && !this.submitted) {
+                            this.timeLeft--;
+                        } else if (this.timeLeft === 0 && !this.submitted) {
+                            alert("Đã hết thời gian làm bài! Hệ thống sẽ tự động nộp bài.");
+                            this.submitQuiz();
+                        }
+                    }, 1000);
+                },
                 get totalQuestions() {
                     return Object.keys(this.questions).length;
                 },
+                get formatTime() {
+                    const minutes = Math.floor(this.timeLeft / 60);
+                    const seconds = this.timeLeft % 60;
+                    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                },
                 async submitQuiz() {
+                    if (this.submitted) return;
+                    clearInterval(this.timer);
+                    
                     const response = await fetch('/submit/' + this.examId, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
