@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ exam_title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans pb-20" x-data="quizApp('{{ exam_id }}')">
+    
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-blue-600 to-indigo-700 text-white shadow-md py-5 px-4 mb-8 sticky top-0 z-20">
+        <div class="max-w-3xl mx-auto flex justify-between items-center">
+            <div>
+                <a href="/" class="text-blue-200 hover:text-white text-sm font-medium inline-block mb-1">← Quay lại danh sách đề</a>
+                <h1 class="text-xl font-bold">{{ exam_title }}</h1>
+            </div>
+            <span class="px-3 py-1 rounded-lg text-xs font-bold" :class="submitted ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'" x-text="submitted ? 'Đã nộp bài' : 'Đang làm bài'"></span>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4">
+        
+        <!-- Score Board -->
+        <template x-if="submitted">
+            <div class="mb-8 bg-white border-2 border-emerald-500/30 rounded-3xl p-6 shadow-xl text-center">
+                <h2 class="text-2xl font-bold text-slate-800">Kết quả bài làm</h2>
+                <p class="text-4xl font-extrabold text-emerald-600 my-2"><span x-text="score"></span> / <span x-text="totalQuestions"></span></p>
+                <button @click="location.reload()" class="mt-3 px-6 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-sm font-semibold transition">Làm lại đề này</button>
+            </div>
+        </template>
+
+        <!-- Danh sách câu hỏi -->
+        <div class="space-y-6">
+            <template x-for="(q, qId) in questions" :key="qId">
+                <div class="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm question-block" :data-id="qId">
+                    <p class="font-semibold text-slate-800 text-base mb-4" x-text="'Câu ' + qId + ': ' + q.question"></p>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <template x-for="(optText, optKey) in q.options" :key="optKey">
+                            <label class="flex items-center p-3.5 rounded-2xl border transition cursor-pointer select-none"
+                                   :class="{
+                                       'border-slate-200 bg-slate-50/50 hover:bg-slate-100': !submitted && answers[qId] !== optKey,
+                                       'border-blue-500 bg-blue-50 text-blue-900 font-medium': !submitted && answers[qId] === optKey,
+                                       'border-emerald-500 bg-emerald-50 text-emerald-900 font-medium': submitted && results[qId]?.correct === optKey,
+                                       'border-rose-300 bg-rose-50 text-rose-900': submitted && answers[qId] === optKey && results[qId]?.correct !== optKey,
+                                       'border-slate-200 bg-white opacity-60': submitted && results[qId]?.correct !== optKey && answers[qId] !== optKey
+                                   }">
+                                <input type="radio" :name="'q_' + qId" :value="optKey" x-model="answers[qId]" :disabled="submitted" class="w-4 h-4 text-blue-600 focus:ring-blue-500 mr-3">
+                                <span class="text-sm"><strong x-text="optKey + '.'"></strong> <span x-text="optText"></span></span>
+                            </label>
+                        </template>
+                    </div>
+
+                    <!-- Lời giải hiển thị sau khi nộp -->
+                    <template x-if="submitted && results[qId]">
+                        <div class="mt-4 p-4 rounded-2xl text-sm border"
+                             :class="results[qId].is_correct ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'">
+                            <div class="font-bold mb-1">
+                                <span x-text="results[qId].is_correct ? '✔ Chính xác!' : '✘ Sai rồi.'"></span>
+                                <span class="font-normal" x-show="!results[qId].is_correct">(Đáp án đúng: <strong x-text="results[qId].correct"></strong>)</span>
+                            </div>
+                            <p class="text-slate-700 mt-1"><strong>Giải thích:</strong> <span x-text="results[qId].explanation"></span></p>
+                        </div>
+                    </template>
+                </div>
+            </template>
+        </div>
+
+        <!-- Nút nộp bài -->
+        <div class="mt-10 text-center" x-show="!submitted">
+            <button @click="submitQuiz()" class="px-8 py-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-2xl shadow-lg transition text-base">
+                Nộp bài & Chấm điểm
+            </button>
+        </div>
+
+    </main>
+
+    <script>
+        function quizApp(examId) {
+            return {
+                examId: examId,
+                questions: {{ questions | tojson }},
+                answers: {},
+                submitted: false,
+                score: 0,
+                total: 0,
+                results: {},
+                get totalQuestions() {
+                    return Object.keys(this.questions).length;
+                },
+                async submitQuiz() {
+                    const response = await fetch('/submit/' + this.examId, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ answers: this.answers })
+                    });
+                    
+                    const data = await response.json();
+                    this.score = data.score;
+                    this.results = data.results;
+                    this.submitted = true;
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
