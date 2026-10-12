@@ -1,33 +1,119 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Luyện Thi Trắc Nghiệm</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-slate-50 text-slate-800 min-h-screen py-12 px-4">
-    <div class="max-w-3xl mx-auto">
-        <div class="text-center mb-10">
-            <h1 class="text-3xl font-extrabold text-slate-900">Danh Sách Đề Thi Trắc Nghiệm</h1>
-            <p class="text-slate-500 mt-2">Chọn một mã đề bên dưới để bắt đầu làm bài thi bảo mật an toàn</p>
-        </div>
+from flask import Flask, jsonify, render_template, request
 
-        <div class="grid grid-cols-1 gap-6">
-            {% for exam_id, exam in exams.items() %}
-            <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <span class="inline-block px-3 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-700 mb-2">Mã đề: {{ exam_id }}</span>
-                    <h2 class="text-xl font-bold text-slate-800">{{ exam.title }}</h2>
-                    <p class="text-slate-600 text-sm mt-1">{{ exam.description }}</p>
-                    <p class="text-xs text-slate-400 mt-3 font-medium">Tổng số câu: {{ exam.total_questions }} câu</p>
-                </div>
-                <a href="/exam/{{ exam_id }}" class="w-full md:w-auto text-center px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition shadow">
-                    Vào làm bài
-                </a>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-</body>
-</html>
+app = Flask(__name__)
+
+# Cơ sở dữ liệu chứa NHIỀU ĐỀ THI khác nhau (Lưu trữ an toàn trên Server)
+EXAMS_DB = {
+    "0003": {
+        "title": "English 4 - Giữa kỳ (Mã đề 0003)",
+        "description": "Bộ đề ôn tập gồm phần Phát âm, Trọng âm, Từ vựng, Ngữ pháp và Đọc hiểu.",
+        "questions": {
+            1: {
+                "question": "Which underlined part is pronounced differently? A. challenge B. chocolate C. achievement D. chemistry",
+                "options": {"A": "challenge", "B": "chocolate", "C": "achievement", "D": "chemistry"},
+                "correct": "D",
+                "explanation": "Chemistry phát âm là /k/, trong khi các từ còn lại phát âm là /tʃ/."
+            },
+            2: {
+                "question": "Which underlined part is pronounced differently? A. treatment B. measure C. treasure D. pleasure",
+                "options": {"A": "treatment", "B": "measure", "C": "treasure", "D": "pleasure"},
+                "correct": "A",
+                "explanation": "Treatment phát âm là /iː/, trong khi các từ còn lại phát âm là /e/."
+            },
+            12: {
+                "question": "For health or weight loss ..., many people cut down or just stopped consuming alcoholic drinks altogether.",
+                "options": {"A": "improvements", "B": "arguments", "C": "reasons", "D": "trends"},
+                "correct": "C",
+                "explanation": "Dùng cụm từ cố định: 'For health or weight loss reasons' (Vì lý do sức khỏe hoặc giảm cân)."
+            },
+            31: {
+                "question": "I've always liked taking photos. I think when I grow up, ... a professional photographer.",
+                "options": {"A": "I'll be", "B": "I won't be", "C": "I'm be", "D": "I not be"},
+                "correct": "A",
+                "explanation": "Dùng thì tương lai đơn với 'I think' để diễn tả dự đoán cá nhân trong tương lai."
+            }
+        }
+    },
+    "0001": {
+        "title": "English 4 - Cuối kỳ mẫu (Mã đề 0001)",
+        "description": "Đề thi thử tổng hợp kiểm tra ngữ pháp nâng cao và từ vựng học thuật.",
+        "questions": {
+            1: {
+                "question": "Choose the correct preposition: She has been working in this company ... five years.",
+                "options": {"A": "since", "B": "for", "C": "in", "D": "during"},
+                "correct": "B",
+                "explanation": "Dùng 'for' đi kèm với một khoảng thời gian cụ thể (five years)."
+            },
+            2: {
+                "question": "If I had known about the traffic jam, I ... another route.",
+                "options": {"A": "will take", "B": "would take", "C": "would have taken", "D": "took"},
+                "correct": "C",
+                "explanation": "Câu điều kiện loại 3 diễn tả giả thiết trái ngược với quá khứ: If + Past Perfect, would have + V3/ed."
+            }
+        }
+    }
+}
+
+@app.route('/')
+def index():
+    # Gửi danh sách các đề thi (chỉ gửi tiêu đề và mô tả, không gửi câu hỏi ra ngoài trang chủ)
+    exam_list = {}
+    for exam_id, data in EXAMS_DB.items():
+        exam_list[exam_id] = {
+            "title": data["title"],
+            "description": data["description"],
+            "total_questions": len(data["questions"])
+        }
+    return render_template('index.html', exams=exam_list)
+
+@app.route('/exam/<exam_id>')
+def exam_room(exam_id):
+    if exam_id not in EXAMS_DB:
+        return "Không tìm thấy đề thi này!", 404
+    
+    exam_data = EXAMS_DB[exam_id]
+    # Chỉ gửi câu hỏi và các lựa chọn xuống Client, giấu hoàn toàn 'correct' và 'explanation'
+    client_questions = {}
+    for q_id, q in exam_data["questions"].items():
+        client_questions[q_id] = {
+            "question": q["question"],
+            "options": q["options"]
+        }
+        
+    return render_template('quiz.html', exam_id=exam_id, exam_title=exam_data["title"], questions=client_questions)
+
+@app.route('/submit/<exam_id>', methods=['POST'])
+def submit_exam(exam_id):
+    if exam_id not in EXAMS_DB:
+        return jsonify({"error": "Invalid exam ID"}), 400
+        
+    user_answers = request.json.get("answers", {})
+    exam_data = EXAMS_DB[exam_id]["questions"]
+    
+    results = {}
+    score = 0
+    total = len(exam_data)
+
+    for q_id_str, user_ans in user_answers.items():
+        q_id = int(q_id_str)
+        if q_id in exam_data:
+            correct_ans = exam_data[q_id]["correct"]
+            is_correct = (user_ans == correct_ans)
+            if is_correct:
+                score += 1
+            
+            # Trả về đáp án đúng và lời giải SAU KHI người dùng đã nộp bài
+            results[q_id] = {
+                "is_correct": is_correct,
+                "correct": correct_ans,
+                "explanation": exam_data[q_id]["explanation"]
+            }
+
+    return jsonify({
+        "score": score,
+        "total": total,
+        "results": results
+    })
+
+if __name__ == '__main__':
+    app.run(debug=True)
