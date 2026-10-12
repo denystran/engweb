@@ -379,6 +379,19 @@ EXAMS_DB = {
             }
         }
     }
+    "final_01": {
+        "title": "English 4 - Cuối Kỳ (Đang cập nhật)",
+        "description": "Bộ đề thi cuối kỳ dự kiến sẽ được cập nhật đầy đủ trong thời gian tới.",
+        "duration_minutes": 50,
+        "questions": {
+            1: {"section": "grammar", "sectionName": "Ngữ pháp",
+                "question": "Đề thi cuối kỳ sẽ sớm được cập nhật các câu hỏi mới nhất tại đây.",
+                "options": {"A": "Đang cập nhật", "B": "Đang cập nhật", "C": "Đang cập nhật", "D": "Đang cập nhật"},
+                "correct": "A",
+                "explanation": "Đề thi đang được biên soạn thêm."
+            }
+        }
+    }
 }
 
 @app.route('/')
